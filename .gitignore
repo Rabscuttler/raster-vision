@@ -107,6 +107,9 @@ deployment/ansible/*.retry
 # Vim
 .*.sw*
 
+# Pycharm
+.idea
+
 # GDAL files
 
 *.aux.xml
