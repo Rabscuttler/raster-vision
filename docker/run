@@ -59,7 +59,7 @@ do
         shift # past argument
         ;;
         --gpu)
-        IMAGE="raster-vision-gpu"
+        IMAGE="quay.io/azavea/raster-vision:gpu-latest"
         RUNTIME="--runtime=nvidia"
         shift # past argument
         ;;
