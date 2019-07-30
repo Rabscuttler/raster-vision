@@ -29,3 +29,10 @@ rastervision run local -p tiny_spacenet.py -n
 
 # Run for real
 rastervision run local -p tiny_spacenet.py
+
+
+Next steps:
+Use vegas simple segmentation as example.  
+Take the pv arrays dataframe and use that to select labels by year and size
+as inputs into the RV experiment 
+Also follow the example and put in a 'testing' parameter and so on.
