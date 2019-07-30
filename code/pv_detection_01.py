@@ -11,10 +11,10 @@ import rastervision as rv
 class SolarExperimentSet(rv.ExperimentSet):
     def exp_main(self):
         base_uri = ('/opt/data') # docker filepath mounted to my data directory
-        train_image_uri = f'{base_uri}/tq2866_l2_250_01.jpg'
-        train_label_uri = f'{base_uri}/tq2866_l2_250_01.jpg'
-        val_image_uri = f'{base_uri}/'
-        val_label_uri = f'{base_uri}/'
+        train_image_uri = '{base_uri}/tq2866_l2_250_01.jpg'.format(base_uri)
+        train_label_uri = '{base_uri}/tq2866_l2_250_01.jpg'.format(base_uri)
+        val_image_uri = '{base_uri}/'.format(base_uri)
+        val_label_uri = '{base_uri}/'.format(base_uri)
 
         # ------------- TASK -------------
 
