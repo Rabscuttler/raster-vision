@@ -17,6 +17,12 @@ mkdir -p ${RV_QUICKSTART_CODE_DIR} ${RV_QUICKSTART_EXP_DIR}
      -v ${RV_QUICKSTART_EXP_DIR}:/opt/data \
      quay.io/azavea/raster-vision:gpu-latest /bin/bash
 
+# Run Docker/run script
+docker/run --tensorboard --gpu
+
+# Other variables
+--jupyter
+
 # Change to code directory
 cd /opt/src/code
 
