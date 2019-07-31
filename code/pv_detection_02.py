@@ -7,6 +7,14 @@
 # Following the tiny_spacenet example and Vegas simple_segmentation
 # https://github.com/azavea/raster-vision-examples/blob/0.9/examples/spacenet/vegas/simple_segmentation.py
 
+
+# To run:
+
+# rastervision run local -p pv_detection_02.py -a test True
+
+
+
+
 import re
 import random
 import os
@@ -34,11 +42,10 @@ def str_to_bool(x):
 class SolarExperimentSet(rv.ExperimentSet):
     def exp_main(self, test=False):
         # docker filepath mounted to my data directory
-        base_uri = join(
-            raw_uri, '/labels')
+        base_uri = '/opt/data/labels'
 
-        raster_uri = raster_uri # rasters and labels in same directory for now
-        label_uri = label_uri
+        raster_uri = base_uri # rasters and labels in same directory for now
+        label_uri = base_uri
 
         # Find all of the image ids that have associated images and labels. Collect
         # these values to use as our scene ids.
@@ -65,6 +72,7 @@ class SolarExperimentSet(rv.ExperimentSet):
         # Batch.
         test = str_to_bool(test)
         if test:
+            print("***************** TEST MODE *****************")
             exp_id += '-test'
             num_steps = 1
             batch_size = 1
@@ -84,21 +92,28 @@ class SolarExperimentSet(rv.ExperimentSet):
         val_ids = scene_ids[num_train_ids:]
 
 
-
         # ------------- TASK -------------
+
+        # task = rv.TaskConfig.builder(rv.SEMANTIC_SEGMENTATION) \
+        #     .with_chip_size(300) \
+        #     .with_classes({
+        #     'pv': (1, 'yellow'),
+        #     # 'background': (2, 'black')
+        #     }) \
+        #     .with_chip_options(
+        #                         chips_per_scene=50,
+        #                         debug_chip_probability=0.1,
+        #                         negative_survival_probability=1.0,
+        #                         target_classes=[1],
+        #                         target_count_threshold=1000) \
+        #     .build()
 
         task = rv.TaskConfig.builder(rv.SEMANTIC_SEGMENTATION) \
             .with_chip_size(300) \
             .with_classes({
             'pv': (1, 'yellow'),
-            'background': (2, 'black')
+            # 'background': (2, 'black')
             }) \
-            .with_chip_options(
-                                chips_per_scene=50,
-                                debug_chip_probability=0.1,
-                                negative_survival_probability=1.0,
-                                target_classes=[1],
-                                target_count_threshold=1000) \
             .build()
 
         # # ------------- BACKEND -------------
@@ -111,8 +126,10 @@ class SolarExperimentSet(rv.ExperimentSet):
             .with_batch_size(num_steps) \
             .with_num_steps(batch_size) \
             .with_model_defaults(rv.MOBILENET_V2) \
+            .with_train_options(replace_model=False) \
             .build()
 
+        # ------------- Make Scenes -------------
         # We will use this function to create a list of scenes that we will pass
         # to the DataSetConfig builder.
         def make_scene(id):
@@ -127,7 +144,6 @@ class SolarExperimentSet(rv.ExperimentSet):
             # Find the uri for the image associated with this is
             train_image_uri = os.path.join(raster_uri,
                                            '{}.jpg'.format(id))
-
             # Construct a raster source from an image uri that can be handled by Rasterio.
             # We also specify the order of image channels by their indices and add a
             # stats transformer which normalizes pixel values into uint8.
@@ -153,6 +169,7 @@ class SolarExperimentSet(rv.ExperimentSet):
                 .with_vector_source(vector_source) \
                 .with_rasterizer_options(2) \
                 .build()
+
 
             # Create a semantic segmentation label source from rasterized source config
             # that we built in the previous line.
@@ -192,7 +209,6 @@ class SolarExperimentSet(rv.ExperimentSet):
         analyzer = rv.AnalyzerConfig.builder(rv.STATS_ANALYZER) \
                                     .build()
 
-
         # ------------- EXPERIMENT -------------
         experiment = rv.ExperimentConfig.builder() \
             .with_id(exp_id) \
@@ -200,7 +216,7 @@ class SolarExperimentSet(rv.ExperimentSet):
             .with_backend(backend) \
             .with_analyzer(analyzer) \
             .with_dataset(dataset) \
-            .with_root_uri('/opt/data') \
+            .with_root_uri('/opt/data/rv') \
             .build()
 
         return experiment

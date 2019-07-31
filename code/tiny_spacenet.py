@@ -3,6 +3,9 @@
 
 # tiny_spacenet.py
 
+# Run:
+# rastervision run local -p tiny_spacenet.py -n
+
 import rastervision as rv
 
 class TinySpacenetExperimentSet(rv.ExperimentSet):
