@@ -144,10 +144,10 @@ class SolarExperimentSet(rv.ExperimentSet):
         if test:
             print("***************** TEST MODE *****************")
             exp_id += '-test'
-            num_steps = 1e3
-            batch_size = 8
+            num_steps = 1
+            batch_size = 1
             debug = True
-            scene_ids = scene_ids[0:10]
+            scene_ids = scene_ids[0:5]
 
         # Split the data into training and validation sets:
         # Randomize the order of all scene ids
@@ -161,6 +161,7 @@ class SolarExperimentSet(rv.ExperimentSet):
         train_ids = scene_ids[0:num_train_ids]
         val_ids = scene_ids[num_train_ids:]
 
+        print(num_steps)
 
         # ------------- TASK -------------
 
@@ -172,8 +173,9 @@ class SolarExperimentSet(rv.ExperimentSet):
             })\
             .with_chip_options(
                                 chips_per_scene=50,
-                                debug_chip_probability=0.1,
-                                negative_survival_probability=1.0,
+                                window_method='random_sample',
+                                debug_chip_probability=1,
+                                negative_survival_probability=0.01,
                                 target_classes=[1],
                                 target_count_threshold=1000) \
             .build()
@@ -280,7 +282,7 @@ class SolarExperimentSet(rv.ExperimentSet):
             .with_backend(backend) \
             .with_analyzer(analyzer) \
             .with_dataset(dataset) \
-            .with_root_uri('/opt/data/rv/try1') \
+            .with_root_uri('/opt/data/rv/test2') \
             .build()
 
         return experiment
