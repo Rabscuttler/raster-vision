@@ -17,6 +17,8 @@
 
 # rastervision run local -p pv_detection_02.py -a test True
 
+# Check tensorboard
+# tensorboard --logdir /opt/data/rv/test2/train/pv-detection-2-test
 
 
 
@@ -47,7 +49,7 @@ def str_to_bool(x):
 class SolarExperimentSet(rv.ExperimentSet):
     def exp_main(self, test=False):
         # docker filepath mounted to my data directory
-        base_uri = '/opt/data/labels'
+        base_uri = '/opt/data/labels2'
 
         raster_uri = base_uri # rasters and labels in same directory for now
         label_uri = base_uri
@@ -55,10 +57,10 @@ class SolarExperimentSet(rv.ExperimentSet):
         # Find all of the image ids that have associated images and labels. Collect
         # these values to use as our scene ids.
         # TODO use PV Array dataframe to select these
-        # label_paths = list_paths(label_uri, ext='.geojson')
-        # scene_ids = [x.split('.')[-2].split('/')[-1] for x in label_paths]
+        label_paths = list_paths(label_uri, ext='.geojson')
+        scene_ids = [x.split('.')[-2].split('/')[-1] for x in label_paths]
 
-        scene_ids = [
+        scene2_ids = [
          'so9051_rgb_250_04', 'so9265_rgb_250_05', 'sp3590_rgb_250_04',
          'sj7304_rgb_250_04', 'su1385_rgb_250_06', 'st0709_rgb_250_05',
          'sj9004_rgb_250_05', 'st8022_rgb_250_05', 'st8303_rgb_250_05',
@@ -124,10 +126,10 @@ class SolarExperimentSet(rv.ExperimentSet):
          'st2228_rgb_250_05', 'st2227_rgb_250_05']
 
         # Experiment label, used to label config files
-        exp_id = 'pv-detection-1'
+        exp_id = 'pv-detection-2'
 
         # Number of times passing a batch of images through the model
-        num_steps = 1e5
+        num_steps = 1e4 # 1e5 takes too long
         # Number of images in each batch
         batch_size = 8
         # Specify whether or not to make debug chips (a zipped sample of png chips
@@ -144,8 +146,8 @@ class SolarExperimentSet(rv.ExperimentSet):
         if test:
             print("***************** TEST MODE *****************")
             exp_id += '-test'
-            num_steps = 1
-            batch_size = 1
+            num_steps = 100
+            batch_size = 4
             debug = True
             scene_ids = scene_ids[0:5]
 
@@ -155,13 +157,14 @@ class SolarExperimentSet(rv.ExperimentSet):
         scene_ids = sorted(scene_ids)
         random.shuffle(scene_ids)
 
-        # Figure out how many scenes make up 80% of the whole set
+        # # Figure out how many scenes make up 80% of the whole set
         num_train_ids = round(len(scene_ids) * 0.8)
-        # Split the scene ids into training and validation lists
+
+        # # Split the scene ids into training and validation lists
         train_ids = scene_ids[0:num_train_ids]
         val_ids = scene_ids[num_train_ids:]
-
-        print(num_steps)
+        # train_ids = scene_ids
+        # val_ids = scene_ids
 
         # ------------- TASK -------------
 
@@ -174,8 +177,8 @@ class SolarExperimentSet(rv.ExperimentSet):
             .with_chip_options(
                                 chips_per_scene=50,
                                 window_method='random_sample',
-                                debug_chip_probability=1,
-                                negative_survival_probability=0.01,
+                                debug_chip_probability=0.25,
+                                negative_survival_probability=0.1,
                                 target_classes=[1],
                                 target_count_threshold=1000) \
             .build()
@@ -191,7 +194,8 @@ class SolarExperimentSet(rv.ExperimentSet):
             .with_batch_size(batch_size) \
             .with_num_steps(num_steps) \
             .with_model_defaults(rv.MOBILENET_V2) \
-            .with_train_options(replace_model=True) \
+            .with_train_options(replace_model=False,
+                                sync_interval=5) \
             .build()
 
         # ------------- Make Scenes -------------
@@ -282,7 +286,7 @@ class SolarExperimentSet(rv.ExperimentSet):
             .with_backend(backend) \
             .with_analyzer(analyzer) \
             .with_dataset(dataset) \
-            .with_root_uri('/opt/data/rv/test2') \
+            .with_root_uri('/opt/data/rv/try1') \
             .build()
 
         return experiment
