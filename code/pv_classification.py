@@ -4,8 +4,8 @@
 # Using 4000x4000 aerial image files and polygon labels of existing
 # arrays taken from Open Street Map
 
-# Following the tiny_spacenet example and Vegas simple_segmentation
-# https://github.com/azavea/raster-vision-examples/blob/0.9/examples/spacenet/vegas/simple_segmentation.py
+# Following the tiny_spacenet example and Rio Chip Classification
+# https://github.com/azavea/raster-vision-examples/blob/master/examples/spacenet/rio/chip_classification.py 
 
 
 # To run
@@ -15,10 +15,10 @@
 # e.g. -r Rerun commands, regardless if their output files already exist.
 
 
-# rastervision run local -p pv_detection_02.py -a test True
+# rastervision run local -p pv_classification.py -a test True
 
 # Check tensorboard
-# tensorboard --logdir /opt/data/rv/test2/train/pv-detection-2-test
+# tensorboard --logdir /opt/data/rv/classification/train
 
 
 
@@ -29,6 +29,7 @@ from os.path import join
 
 import rastervision as rv
 from rastervision.utils.files import list_paths
+from rastervision.augmentor import OversamplingAugmentor
 
 ##########################################
 # Utils
@@ -125,42 +126,35 @@ class SolarExperimentSet(rv.ExperimentSet):
          'st5479_rgb_250_06', 'se2931_rgb_250_02', 'sd6835_rgb_250_01',
          'st2228_rgb_250_05', 'st2227_rgb_250_05']
 
-        # Experiment label, used to label config files
-        exp_id = 'pv-detection-2'
+        # Experiment label and root directory for output 
+        exp_id = 'pv-classification'
+        root_uri = '/opt/data/rv/test3'
 
-        # Number of times passing a batch of images through the model
-        num_steps = 1e4 # 1e5 takes too long
-        # Number of images in each batch
-        batch_size = 8
-        # Specify whether or not to make debug chips (a zipped sample of png chips
-        # that you can examine to help debug the chipping process)
+        # num_steps = 1e4 # 1e5 takes too long
+        num_epochs = 20
+        batch_size = 16 
         debug = True
-
-        # This experiment includes an option to run a small test experiment before
-        # running the whole thing. You can set this using the 'test' parameter. If
-        # this parameter is set to True it will run a tiny test example with a new
-        # experiment id. This will be small enough to run locally. It is recommended
-        # to run a test example locally before submitting the whole experiment to AWs
-        # Batch.
+       
         test = str_to_bool(test)
         if test:
             print("***************** TEST MODE *****************")
             exp_id += '-test'
-            num_steps = 100
-            batch_size = 4
+            # num_steps = 100
+            num_epochs = 1
+            batch_size = 1
             debug = True
+            train_ids = scene_ids
+            val_ids = scene_ids
             scene_ids = scene_ids[0:5]
-
-        # Split the data into training and validation sets:
+       
+       # Split the data into training and validation sets:
         # Randomize the order of all scene ids
         random.seed(5678)
         scene_ids = sorted(scene_ids)
         random.shuffle(scene_ids)
 
-        # # Figure out how many scenes make up 80% of the whole set
+        # Set scenes
         num_train_ids = round(len(scene_ids) * 0.8)
-
-        # # Split the scene ids into training and validation lists
         train_ids = scene_ids[0:num_train_ids]
         val_ids = scene_ids[num_train_ids:]
         # train_ids = scene_ids
@@ -168,19 +162,12 @@ class SolarExperimentSet(rv.ExperimentSet):
 
         # ------------- TASK -------------
 
-        task = rv.TaskConfig.builder(rv.SEMANTIC_SEGMENTATION) \
-            .with_chip_size(300) \
+        task = rv.TaskConfig.builder(rv.CHIP_CLASSIFICATION) \
+            .with_chip_size(200) \
             .with_classes({
-            'pv': (1, 'yellow'),
-            'background': (2, 'black')
+                'pv': (1, 'yellow'),
+                'background': (2, 'black')
             })\
-            .with_chip_options(
-                                chips_per_scene=50,
-                                window_method='random_sample',
-                                debug_chip_probability=1,
-                                negative_survival_probability=0.01,
-                                target_classes=[1],
-                                target_count_threshold=1000) \
             .build()
 
 
@@ -188,14 +175,33 @@ class SolarExperimentSet(rv.ExperimentSet):
         # Configuration options for different models and tasks:
         # https://github.com/azavea/raster-vision/blob/60f741e30a016f25d2643a9b32916adb22e42d50/rastervision/backend/model_defaults.json
 
-        backend = rv.BackendConfig.builder(rv.TF_DEEPLAB) \
+        backend = rv.BackendConfig.builder(rv.KERAS_CLASSIFICATION) \
             .with_task(task) \
             .with_debug(debug) \
             .with_batch_size(batch_size) \
-            .with_num_steps(num_steps) \
-            .with_model_defaults(rv.MOBILENET_V2) \
-            .with_train_options(replace_model=False,
-                                sync_interval=5) \
+            .with_num_epochs(num_epochs) \
+            .with_model_defaults(rv.RESNET50_IMAGENET) \
+            .with_config({
+                'trainer': {
+                    'options': {
+                        'saveBest': True,
+                        'lrSchedule': [
+                            {
+                              'epoch': 0,
+                              'lr': 0.0005
+                            },
+                            {
+                              'epoch': 10,
+                              'lr': 0.0001
+                            },
+                            {
+                              'epoch': 15,
+                              'lr': 0.00001
+                            }
+                        ]
+                    }
+                 }
+            }, set_missing_keys=True) \
             .build()
 
         # ------------- Make Scenes -------------
@@ -211,38 +217,32 @@ class SolarExperimentSet(rv.ExperimentSet):
                     images, labels and optionally AOIs
             """
             # Find the uri for the image associated with this is
-            train_image_uri = os.path.join(raster_uri,
+            image_uri = os.path.join(raster_uri,
                                            '{}.jpg'.format(id))
             # Construct a raster source from an image uri that can be handled by Rasterio.
             # We also specify the order of image channels by their indices and add a
             # stats transformer which normalizes pixel values into uint8.
             raster_source = rv.RasterSourceConfig.builder(rv.RASTERIO_SOURCE) \
-                .with_uri(train_image_uri) \
+                .with_uri(image_uri) \
                 .with_channel_order([0, 1, 2]) \
                 .with_stats_transformer() \
                 .build()
 
-            # Next create a label source config to pair with the raster source:
-            # define the geojson label source uri
-            vector_source = os.path.join(
-                label_uri, '{}.geojson'.format(id))
-
-            # Since this is a semantic segmentation experiment and the labels
-            # are distributed in a vector-based GeoJSON format, we need to rasterize
-            # the labels. We create  aRasterSourceConfigBuilder using
-            # `rv.RASTERIZED_SOURCE`
-            # indicating that it will come from a vector source. We then specify the uri
-            # of the vector source and (in the 'with_rasterizer_options' method) the id
-            # of the pixel class we would like to use as background.
-            label_raster_source = rv.RasterSourceConfig.builder(rv.RASTERIZED_SOURCE) \
-                .with_vector_source(vector_source) \
-                .with_rasterizer_options(2) \
-                .build()
-
-            # Create a semantic segmentation label source from rasterized source config
-            # that we built in the previous line.
-            label_source = rv.LabelSourceConfig.builder(rv.SEMANTIC_SEGMENTATION) \
-                .with_raster_source(label_raster_source) \
+            label = os.path.join(label_uri, '{}.geojson'.format(id))
+            
+            # Build our classification labels.
+            # IOA Threshold means minimum percentage of IOA of polygon and cell
+            # infer_cells means label source infers polygons and labels
+            # from the vector source.
+            # with_pick_min_class_id True means will always pick PV if it is present
+            # as it is the smaller id number
+            label_source = rv.LabelSourceConfig.builder(rv.CHIP_CLASSIFICATION) \
+                .with_uri(label) \
+                .with_ioa_thresh(0.01) \
+                .with_use_intersection_over_cell(False) \
+                .with_pick_min_class_id(True) \
+                .with_background_class_id(2) \
+                .with_infer_cells(True) \
                 .build()
 
             # Finally we can build a scene config object using the scene id and the
@@ -263,9 +263,12 @@ class SolarExperimentSet(rv.ExperimentSet):
         # ------------- DATASET -------------
         # Construct a DataSet config using the lists of train and
         # validation scenes
+        augmentor = 
+        
         dataset = rv.DatasetConfig.builder() \
             .with_train_scenes(train_scenes) \
             .with_validation_scenes(val_scenes) \
+            .with_augmentor(augmentor)
             .build()
 
         # ------------- ANALYZE -------------
@@ -286,7 +289,7 @@ class SolarExperimentSet(rv.ExperimentSet):
             .with_backend(backend) \
             .with_analyzer(analyzer) \
             .with_dataset(dataset) \
-            .with_root_uri('/opt/data/rv/test3') \
+            .with_root_uri(root_uri) \
             .build()
 
         return experiment
